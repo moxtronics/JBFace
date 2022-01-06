@@ -168,6 +168,8 @@ void loop() {
     float nvol = 0;
     int previous_peak = -1;
     
+// microphone reading
+
     for (int i = 0; i<samples; i++){
         auto analog = analogRead(A7);
         auto micline = abs(analog - 512);
@@ -183,6 +185,9 @@ void loop() {
             smiling = false;
             last_face = millis();
         }
+
+// smile trigger
+
     } else {
         if(pop_detection > 0 && pop_detection <= 5) {
             if(millis() > last_face + 500){
