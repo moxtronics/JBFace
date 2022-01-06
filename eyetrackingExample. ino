@@ -1,5 +1,15 @@
 /*
+When the iris approaches one sensor, the reflected light decreases 
+and the sensor value increases. Conversely, when the iris moves away, 
+the reflected light increases and the sensor value of the photo 
+reflector decreases.
 
+The right and left movement of the pupil of the LED eyeball senses 
+the increase and decrease of one sensor value and controls it.
+
+When blinking, both sensor values ​​decrease, so if the two sensor 
+values ​​decrease simultaneously, the eyelids of the LED eyeball 
+will go down.
 
 */
 
@@ -20,6 +30,7 @@ byte eyeColor;
 int LR =7;
 boolean lid = false;
 int cnt = 0;
+
 //Black eye L&R animation
 int blackLED[15][24] = {{12,32,35,55,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68},
                        {12,13,31,36,54,55,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68},
@@ -36,6 +47,7 @@ int blackLED[15][24] = {{12,32,35,55,68,68,68,68,68,68,68,68,68,68,68,68,68,68,6
                        { 4,19,20,25,42,47,48,63,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68},
                        {20,21,24,43,46,47,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68},
                        {21,23,44,46,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68,68}};
+
 //pupil L&R animation
 int pupilLED[15][12] = {{33,34,68,68,68,68,68,68,68,68,68,68},
                        {32,33,34,35,68,68,68,68,68,68,68,68},
@@ -52,12 +64,15 @@ int pupilLED[15][12] = {{33,34,68,68,68,68,68,68,68,68,68,68},
                        {21,22,23,24,43,44,45,46,68,68,68,68},
                        {22,23,44,45,68,68,68,68,68,68,68,68},
                        {22,45,68,68,68,68,68,68,68,68,68,68}};
+
 //Blink animation
 int eyelid = 0;
 int eyelidNum[8] = {0,4,8,16,24,34,44,56};
 int eyelidLED[56] = {64,65,66,67,58,59,60,61,56,57,62,63,49,50,51,52,47,48,53,54,38,39,40,41,46,55,36,37,42,43,26,27,28,29,35,44,24,25,30,31,15,16,17,18,34,45,23,32,13,14,19,20,6,7,8,9};
 QTRSensorsAnalog qtra((unsigned char[]) {0, 1}, NUM_SENSORS, NUM_SAMPLES_PER_SENSOR, EMITTER_PIN);
 unsigned int sensorValues[NUM_SENSORS];
+
+
 void blink(int eyelid, int LR) {
  if (eyelid != 8){
    //Pewter
@@ -81,6 +96,8 @@ void blink(int eyelid, int LR) {
  }
  led.show();
 }
+
+
 void setup() {
  Serial.begin(115200);
  led.begin();
@@ -93,6 +110,8 @@ void setup() {
  iniSensorValR = sensorValues[1];
  blink(eyelid, LR);
 }
+
+
 void loop() {
  //QTR - 1A sensor value
  qtra.read(sensorValues);
