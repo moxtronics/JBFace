@@ -9,41 +9,24 @@
 // Define pins
 #define DATA_PIN 3
 
-//#define BUTTON_0 9
-//#define BUTTON_1 10
-//#define BUTTON_2 11
+
 #define smileButton 8
+//#define sparkleButton 9
+//#define angyButton 10
 
-//smile timing stuff
-//******************
-#define PUSHED HIGH //switch pressed gives HIGH (+5V) on pin
+//smile timing stuff ************
+//Basic single shot delay (1/1 replaces regular delay)
 
-unsigned long smileMillis;
-unsigned long switchMillis;
-unsigned long lastMillis;
-unsigned long delayTime;
+unsigned long DELAY_TIME = 3000; // 3 sec
+unsigned long delayStart = 0; // the time the delay started
+bool delayRunning = false; // true if still waiting for delay to finish
 
-const unsigned long smileDelay = 500; //1/2 second
-const unsigned long debounceDelay  = 50;  //50ms
-
-#define DELAY 3000 //milliseconds
-
-static unsigned long time;
-static unsigned int state;
-static unsigned int button;
-static unsigned int faceDelay;
-
-
-
-byte smileButtonState
-
+byte smileButtonState;
 //*****************
 
 // look direction control
-//left middle right values: 0-340, 341-680, 681-1024
+//left, leftmid, middle, rightmid, right
 #define LOOK_SLIDER A0
-
-
 
 // LED brightness
 #define BRIGHTNESS 180
@@ -64,19 +47,21 @@ bool sliderValue = false;
 
 
 void setup() {
+  
+//delay stuff
+  delayStart = millis();
+  delayRunning = true;
 
-  time = 0;
-  state = 1;
- 
+  buttonSmilePressed = digitalRead(smileButton) == LOW;
   pinMode(smileButton, INPUT_PULLUP);
 
   pinMode(LOOK_SLIDER, INPUT);
-  Serial.begin(115200);
+  Serial.begin(9600);
 
 
   FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
   FastLED.setBrightness(BRIGHTNESS);
-  mid(); // Start the display with the forward-facing face
+  mid(); // Start the display with the forward face
 }
 
 
@@ -123,8 +108,6 @@ void smile() {
     leds[i] = pgm_read_dword_near(Smile + i);
   }
   FastLED.show();
-  //delay(3000);
-
  
 }
 
@@ -146,33 +129,11 @@ void midB() {
 void loop() {
 
     // Read the button!
-    buttonSmilePressed = digitalRead(smileButton);
-
-    switch state
-    {
-    case 1: 
-            if(buttonSmilePressed == HIGH) { // enter next state and save current time
-            state = 2;
-
-            mid();
-            blinking();
-
-
-            time = millis();
-        }
-        break;
-    case 2: 
-        if(buttonSmilePressed == HIGH) // reset timer
-
-          smile();
-
-            time = millis();
-        if(time - millis() > DELAY) //check if time has passed
-            state = 1;
-
-
-        break;
-    }
+    //checkSmile();
+    if (digitalRead(smileButton) == LOW) {
+    
+    smile();
+  }
 
 
   //control look direction with potentiometer
