@@ -1,0 +1,67 @@
+costumebot functionsmap
+
+faces!
+	default
+		eyes
+			lookleft,lookmidleft,lookmid.lookmidright,lookright
+			blink,blinkmid,winkleft,winkright
+		mouth
+			smile, grin, grinopen
+			phenomes
+				oh, ah, ee, eff
+	happy
+		hypelaser (intro, loop)
+		sparkle (3frames)
+		nya, nyaha, nyaoh
+	cranky
+		angy
+			angy01/02, talk, oh, grit, blink
+		stressed
+			stressed01, blink
+		grump
+			lookleft,lookmidleft,lookmid.lookmidright,lookright
+			blink
+		crying
+			doeEyes, crywaterfall
+	symbols
+		NOface
+		YESface
+		testPattern, testPatternGlitch01,02,03
+		sinewave
+		bufferwheel
+		glitchstatic (transition animations)
+		lowBattery
+	
+	sinewave is MUSIC visualizer mode
+		
+body!
+	default
+		cool tones pink/purple/blue/aqua/SOME green and yellow sparkles
+	happy
+		hypelaser - orange & yellow pulse (indigo baseBG), with magentapurple wavestripes
+		sparkle - purple with pink clouds and yellow glitter
+		nya - pink and orange lavalamp
+	cranky	
+		angy - red fire!
+		stressed - purple and red rain
+		grump - green blocks
+		crying - blue rain
+	symbols
+		NO and YES - default but with a wave or flash of related color
+		testPattern - wipe cycle thru same colors in blocks
+		sinewave - rainbow? very slow, reactive brightness
+		bufferwheel - white waves that freeze, progressbar
+		lowBattery - red heartbeat pulse
+		
+eventual option to hueshift default with remote
+
+	sounds
+		voicebox with beeps overlay related to frequency/tone
+		claps make drumkit sounds
+	motions
+		antenna up/down related to expression
+			restAngle - default, sinewave
+			up - happy
+			down - cranky, NOface, lowBattery
+		vibration sensors trigger 1 or 2 back motors (for the sounds)
+			low or high sensitivity
