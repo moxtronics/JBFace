@@ -55,6 +55,13 @@ body!
 		
 eventual option to hueshift default with remote
 
+inputs!
+	buttons
+		sleep mode (behind neck, or power core)
+		hall effect sensor "buttons" for gloves (thumb magnet)
+	sensors
+		piezos on leggings (thigh slap laughter)
+		gyro for head movement (sound trigger)
 	sounds
 		voicebox with beeps overlay related to frequency/tone
 		claps make drumkit sounds
@@ -64,4 +71,10 @@ eventual option to hueshift default with remote
 			up - happy
 			down - cranky, NOface, lowBattery
 		vibration sensors trigger 1 or 2 back motors (for the sounds)
-			low or high sensitivity
+			low or high sensitivity\
+remote
+	6keys
+	2 rotary encoders
+	mini TFT menu
+	tiny TFT streamdeck buttons
+	
