@@ -1,0 +1,472 @@
+#include "FastLED/FastLED.h"    // Use latest library version - might have to select 3.14 (as of Dec 2016) manually 
+FASTLED_USING_NAMESPACE;
+
+/* Droid Translation Helmet code
+   Project Documentation: https://www.hackster.io/vastemptinessinside/star-wars-droid-translation-helmets-359bea
+   donp@aeinnovations.com
+   Feb 2016
+*/
+
+#define IRsensorPin A0  // Mouth sensor
+#define PTT_PIN A2      // Interface to radio's TRANSMIT - via relay
+#define DATA_PIN    0   // For LED strip
+#define CLOCK_PIN   1
+#define SOUND_0_PIN D6  // Interface to sound board
+#define SOUND_1_PIN D5
+#define SOUND_2_PIN D4
+#define SOUND_3_PIN D3
+#define SOUND_4_PIN D2
+
+#define NUM_LEDS    4
+
+#define BRIGHTNESS  255
+
+#define MOUTH_SENSOR_SAMPLE_RATE  250
+#define IR_BUFFERSIZE   3
+#define LONGTERM_BUFFERSIZE 12
+#define IR_SENSOR_STARTUP_DEADTIME  3000    // this many ms before we actually look at the data (to allow it to populate)
+#define IR_SENSOR_DECAYTIME 100             // Don't assume mouth is done unless at least this much time has passed
+#define DUMP_IR_SENSOR_DEBUG    0
+
+#define PTT_DECAY_TIME  1000        // minimum time to keep PTT on, PTT is useful to hold ON separate from mouth sensor results
+
+#define UDP_PORT_FOR_RIGHT_OF_WAY   8899
+#define RIGHT_OF_WAY_DECAY_TIME     500    // How many ms that right-of-way assertion needs to be absent before we assume it's over
+
+unsigned long int mouthSensorDeadline; // low-precision timer for when to poll the mouth movement sensor
+unsigned long int mouthSensorLeaveAloneUntil;
+unsigned long int mouthSensorDecayed;
+unsigned long int PTToffDeadline;
+int IRreadings[IR_BUFFERSIZE];
+int IRlongterm[LONGTERM_BUFFERSIZE];
+int IRindex;
+int IRprevious;
+int IRltindex;
+bool mouthMoving;
+bool amSpeaking;
+bool PTTonState;
+bool mouthOverride; // Whether we have a hardware override installed (auto detected)
+bool rightOfWayAsserted;    // whether someone else is transmitting and has asserted right-of-way (and so we forbid transmission, etc of our own)
+unsigned long int rightOfWayOver;
+
+// LED String related
+CRGB leds[NUM_LEDS];
+
+// UDP related - we use it to transmit and coordinate "right of way" when talking.
+// Right of way allows reception of another helmet's transmission to overrider and suppress any talking / emitting of our own 
+// as well as play light patterns unique to the act of listening.
+UDP rightOfWayUDP;
+IPAddress broadcastAddress(255,255,255,255);
+unsigned int UDPport = UDP_PORT_FOR_RIGHT_OF_WAY;
+
+
+void setup()
+{
+    // UDP functionality (transmission and reception of right-of-way signal via wifi) setup
+    rightOfWayUDP.begin(UDPport);
+
+    // Leds
+    FastLED.addLeds<LPD8806, DATA_PIN, CLOCK_PIN, GRB>(leds, NUM_LEDS);
+    FastLED.setBrightness( BRIGHTNESS );
+    for(int i; i<NUM_LEDS; i++) { leds[i] = CRGB::Black; }
+    FastLED.show();
+    
+    pinMode(IRsensorPin,INPUT);
+    pinMode(PTT_PIN,OUTPUT);
+    pinMode(SOUND_0_PIN,OUTPUT);
+    pinMode(SOUND_1_PIN,OUTPUT);
+    pinMode(SOUND_2_PIN,OUTPUT);
+    pinMode(SOUND_3_PIN,OUTPUT);
+    pinMode(SOUND_4_PIN,OUTPUT);
+    
+    digitalWrite(SOUND_0_PIN,HIGH);
+    digitalWrite(SOUND_1_PIN,HIGH);
+    digitalWrite(SOUND_2_PIN,HIGH);
+    digitalWrite(SOUND_3_PIN,HIGH);
+    digitalWrite(SOUND_4_PIN,HIGH);
+    digitalWrite(PTT_PIN, LOW);
+
+    
+    Serial.begin(57600);
+    Serial.println("Droid Translation Helmet Firmware Version 1.0");
+    Serial.println("papp.donald@gmail.com - Feb 2016");
+    Serial.println("(? for debug commands)");
+    Serial.println(" ");
+
+    Serial.println(WiFi.localIP());
+    Serial.println("PLAYER 1 READY");
+
+    for(int i; i<NUM_LEDS; i++) {
+        leds[i] = CRGB::Green;
+        FastLED.show();
+        delay(100);
+    }
+    for(int i; i<NUM_LEDS; i++) {
+        leds[i] = CRGB::Black;
+        FastLED.show();
+        delay(100);
+    }
+    
+    checkMouthSensorOverridePresent();
+    
+    // Set up an initial time for checking the IR mouth movement sensor (this kicks off doing it every roughly 50ms unless changed)
+    mouthSensorDeadline = millis() + MOUTH_SENSOR_SAMPLE_RATE;
+    mouthSensorLeaveAloneUntil = millis() + IR_SENSOR_STARTUP_DEADTIME;
+    IRindex = 0; IRprevious = IR_BUFFERSIZE-1; IRltindex = 0; 
+    mouthMoving = false;
+    
+    PTToffDeadline = 0; // A time to turn the PTT off at after it turns on.  0 means inactive/disabled.
+}
+
+
+
+void loop() 
+{
+
+    if( millis() > mouthSensorDeadline )
+    {
+        if( mouthOverride == true ) 
+        { 
+            handleMouthButton(); 
+        }
+        else
+        {
+            handleMouthSensor();
+        }
+    }
+    
+    if( (mouthMoving == true) && (rightOfWayAsserted == false) )
+    {
+        speakDroid(true);
+    }
+    else
+    {
+        speakDroid(false);
+    }
+    
+    if( (mouthMoving == true) && (rightOfWayAsserted == false) )
+    {
+        PTTon();    // Turn on if not already on
+        PTToffDeadline = millis() + PTT_DECAY_TIME; // Top up this value - keep tacking on the PTT_DECAY_TIME as long as we're talking
+        sendROY();  // send a right-of-way assertion packet because we are transmitting
+        leds[1] = CRGB::Green;
+        FastLED.show();
+    }
+    
+    if( (millis() > PTToffDeadline) && (PTToffDeadline != 0) ) 
+    {
+        PTToff();
+        leds[1] = CRGB::Black;
+        FastLED.show();
+    }
+    
+    if( Serial.available() > 0)
+    {
+        int inByte = Serial.read();
+        doConsoleCommands( inByte );
+    }
+    
+    if (rightOfWayUDP.parsePacket() > 0) {    // If any UDP data exists, someone is asserting Right of Way (transmission-wise) so act accordingly.  Actual data is don't care.
+        rightOfWayAsserted = true;
+        rightOfWayOver = millis() + RIGHT_OF_WAY_DECAY_TIME;
+        
+        leds[0] = CRGB::Red;leds[1] = CRGB::Red;leds[2] = CRGB::Red;leds[3] = CRGB::Red;    FastLED.show();
+        rightOfWayUDP.flush();  // drop the data on the floor - it's irrelevant only the transmission existence matters.
+        Serial.println("Right of Way asserted by ~someone~");
+        leds[0] = CRGB::Black;leds[1] = CRGB::Black;leds[2] = CRGB::Black;leds[3] = CRGB::Black;   FastLED.show();
+    }
+    
+    if( (rightOfWayAsserted == true) && (millis() > rightOfWayOver) )
+    {
+        rightOfWayAsserted = false;
+        Serial.println("Right of Way expired");
+    }
+    
+    delay(50);  // Makes things a little more readable
+    Particle.process();
+    
+}
+
+
+/* FUNCTIONS */
+
+// Handle hardware override for mouth sensor
+void handleMouthButton(void)
+{
+    int reading = analogRead(IRsensorPin);
+    // Handle manual override - 0-2 and 4093-4094 when using manual button override
+    if( reading > 4090 ) {
+        //Serial.println("Override button DOWN");
+        mouthMoving = true;
+        //Serial.println("mouth ON");
+        leds[0] = CRGB::Red;
+        FastLED.show();        
+    }
+    else
+    {
+        //Serial.println("Override button UP");
+        mouthMoving = false;
+        //Serial.println("mouth OFF");
+        leds[0] = CRGB::Black;
+        FastLED.show();        
+    }
+    mouthSensorDeadline = millis() + MOUTH_SENSOR_SAMPLE_RATE;  // Set up for next time around
+    return;
+}
+
+
+// Handle Mouth Sensor takes care of checking if it's time to read the value of the mouth sensor (an IR reflective sensor), managing a couple ring buffers of
+// readings and calculating some averages, and checking whether the value changes should be considered "user is talking" or "user has stopped talking".
+// And the housecleaning around that.  This function is more like a big macro, almost everything it touches is a global variable.
+//
+// Most useful of which is boolean variable "mouthMoving" which reflects whether the user is talking.
+//
+void handleMouthSensor(void)
+{
+    int reading = analogRead(IRsensorPin);  // Get current IR reading    
+    //Serial.println(reading);
+
+    IRreadings[IRindex] = reading;            // Write current value to the buffer
+    
+    int diff = IRreadings[IRindex] - IRreadings[IRprevious];    // Get absolute difference between this reading and the last one (i.e. the amount, ignore +/-)
+    diff = abs(diff);
+    int signedDiff = IRreadings[IRindex] - IRreadings[IRprevious];  // Same but maintains the sign
+    
+    int shortTermAvg = 0; // Average of the short-term ring buffer
+
+    for(int i=0; i<IR_BUFFERSIZE; i++) {
+        shortTermAvg += IRreadings[i]; 
+    }
+    
+    shortTermAvg = (shortTermAvg / IR_BUFFERSIZE);
+    IRlongterm[IRltindex] = diff;   // Long term buffer stores magnitude changes, so store the last diff value in it.
+    int IRlongtermAvg = 0; // Calculate the average diff over the entire long term
+
+    for(int i=0; i<LONGTERM_BUFFERSIZE; i++) {
+        IRlongtermAvg += IRlongterm[i]; 
+    }
+
+    IRlongtermAvg = (IRlongtermAvg / LONGTERM_BUFFERSIZE);
+    
+    if( millis() > mouthSensorLeaveAloneUntil )
+    {
+        // Decide if mouth has started moving - sensor data in IRreadings[] and IRlongterm[] are stable
+        // What we have to work with is:
+        //  diff: the absolute change between last reading and this reading (e.g. "50" change from last time whether it was +50 or -50)
+        //  signedDiff: same but preserves the sign (so we know whether it was up or down)
+        //  IRlongtermAvg: average of diffs over the past while (a primitive sort of low-pass filter)
+        //  shortTermAvg: average of (default three) last readings, averages out noisy readings
+        //
+        // How to decide if the mouth is moving:
+        // - Since the IR sensor sometimes has spikes of noise readings (like a diff of 13 all of a sudden out of 0,1,2s) we need to ignore these
+        // - We also need to ignore slow and steady changes in the average value (ambient IR changes, slow sensor movement, etc)
+        // - When we detect a lot of frequent changes to the sensor value, the mouth is moving.
+        // * IRlongtermAvg = used as a threshold
+        // * diff = most recent amount of change
+        // * if diff is significantly higher than IRlongtermAvg a number of times in a row, then trigger
+        if( DUMP_IR_SENSOR_DEBUG == 1 ) {
+            Serial.print(diff); Serial.print(": ");  Serial.print(IRlongtermAvg); Serial.print(": "); Serial.println(abs(IRlongtermAvg-diff)); 
+        }
+        
+        // ^^ Actually if all three go double digit that's not a bad threshold, all three single digit is definitely non-movement and all three double+
+        // is definitely movement.  2/3 and 1/3 = hysterysis?
+        if((((diff>50) && (IRlongtermAvg>50) && (abs(IRlongtermAvg-diff)>50)) && (mouthMoving==false)) ) {
+            mouthMoving = true;
+            Serial.println("mouth ON");
+            leds[0] = CRGB::Red;
+            FastLED.show();
+        }
+        
+        //if(((diff<50) && (IRlongtermAvg<50) && (abs(IRlongtermAvg-diff)<50)) && (mouthMoving==true)) {
+        //else if(((diff<25) && (mouthMoving==true)) || (override==false)) {
+        else if(((diff<25) && (mouthMoving==true)) ) {
+            mouthMoving = false;
+            Serial.println("OFF");
+            leds[0] = CRGB::Black;
+            FastLED.show();
+        }
+    }
+    
+    
+    // Manage the ring buffer indexes - inc then wrap if needed
+    IRprevious = IRindex; IRindex++; IRltindex++;
+    if( IRindex == IR_BUFFERSIZE ) { IRindex = 0; IRprevious = (IR_BUFFERSIZE-1); }
+    if( IRltindex == LONGTERM_BUFFERSIZE ) { IRltindex = 0; }
+    
+    mouthSensorDeadline = millis() + MOUTH_SENSOR_SAMPLE_RATE;  // Set up for next time around
+}
+
+
+
+
+// Speak Droid (true or false ie on or off)
+// Handles choosing a randome sample set to begin playing, then stops that same sample set on
+// the next stop command.  In other words takes care of tracking which sample set is playing 
+// or needs to be stopped (only ever one at a time).
+void speakDroid(bool state)
+{
+    static int sampleChoice;
+    
+    // Choose a sample set (0-4) if we're about to play
+    if( amSpeaking == false && state == false ) 
+    {
+        sampleChoice = random(2,7); // Returns 2-6; seed is handled by the cloud upon connect.  Digital pins 2-6 play sample sets 0-4.
+    }
+    
+    if( state == true && amSpeaking == false )
+    {
+        digitalWrite(sampleChoice, LOW);
+        amSpeaking = true;
+        Serial.print("|> PLAY sample set "); Serial.println(sampleChoice-2);
+    }
+    
+    if( state == false && amSpeaking == true )
+    {
+        digitalWrite(sampleChoice, HIGH);
+        amSpeaking = false;
+        Serial.print("[] STOP sample set "); Serial.println(sampleChoice-2);
+    }
+}
+
+
+
+// PTT on and off control
+// Energizes the relay (or turns it off)
+void PTTon(void)
+{
+    if( PTTonState == true ) { 
+        return;     // Already on
+    }    
+    Serial.println("PTT on");
+    digitalWrite(PTT_PIN,HIGH);
+    PTTonState = true;
+    PTToffDeadline = millis() + PTT_DECAY_TIME; // PTT will always be ON for minimum of now + PTT_DELAY_TIME
+    return;
+}
+void PTToff(void)
+{
+    if( PTTonState == false ) { 
+        return;     // Already off
+    }
+    Serial.println("PTT off");
+    digitalWrite(PTT_PIN,LOW);
+    PTTonState = false;
+    PTToffDeadline = 0;
+    return;
+}
+void PTTonDebug(void)
+{
+    Serial.println("PTT on");
+    digitalWrite(PTT_PIN,HIGH);
+    return;
+}
+void PTToffDebug(void)
+{
+    Serial.println("PTT off");
+    digitalWrite(PTT_PIN,LOW);
+    return;
+}
+
+
+
+void doConsoleCommands(int inByte)
+{
+    if( inByte == '?') {
+        Serial.println(">Sound Debug: 0-4 to play, shift 0-4 to stop");
+        Serial.println(">Lamp Test: L");
+        Serial.println(">PTT Relay on:  p");
+        Serial.println(">PTT Relay off: P");
+        Serial.println(">Send single UDP right-of-way packet: u");
+    }
+    
+    else if( inByte == '0') { speakSample(0); }
+    else if( inByte == '1') { speakSample(1); }
+    else if( inByte == '2') { speakSample(2); }
+    else if( inByte == '3') { speakSample(3); }
+    else if( inByte == '4') { speakSample(4); }
+    else if( inByte == ')') { speakStopSample(0); }
+    else if( inByte == '!') { speakStopSample(1); }
+    else if( inByte == '@') { speakStopSample(2); }
+    else if( inByte == '#') { speakStopSample(3); }
+    else if( inByte == '$') { speakStopSample(4); }
+
+    else if( inByte == 'p') { PTTonDebug(); }
+    else if( inByte == 'P') { PTToffDebug(); }
+    
+    else if( inByte == 'u') {  // send 1 UDP packet
+        sendROY();
+        Serial.println("Sent UDP packet broadcast (asserting transmission right-of-way)");
+    }
+
+
+    else if( inByte == 'L')
+    {
+        Serial.println("RGB Test begin");
+        for(int i; i<NUM_LEDS; i++) {
+            leds[i] = CRGB::Red;
+            FastLED.show();
+            delay(100);
+        }
+        for(int i; i<NUM_LEDS; i++) {
+            leds[i] = CRGB::Green;
+            FastLED.show();
+            delay(100);
+        }
+        for(int i; i<NUM_LEDS; i++) {
+            leds[i] = CRGB::Blue;
+            FastLED.show();
+            delay(100);
+        }
+        for(int i; i<NUM_LEDS; i++) {
+            leds[i] = CRGB::Black;
+            FastLED.show();
+            delay(100);
+        }
+        Serial.println("RGB Test end");
+    }
+}
+
+
+// For testing
+void speakSample(int sampleSet)
+{
+    sampleSet = sampleSet + 2;          // D2-D6 is sampleSet 0-4
+    digitalWrite(sampleSet, LOW);
+    Serial.print("|> PLAY sample set "); Serial.println(sampleSet-2);
+}
+void speakStopSample(int sampleSet)
+{
+    sampleSet = sampleSet + 2;          // D2-D6 is sampleSet 0-4
+    digitalWrite(sampleSet, HIGH);
+    Serial.print("[] STOP sample set "); Serial.println(sampleSet-2);
+}
+
+// If three checks are all <10 on the mouth sensor, then assume the manual override is attached
+void checkMouthSensorOverridePresent(void)
+{
+    int reading = analogRead(IRsensorPin);
+    delay(100);
+    reading += analogRead(IRsensorPin);
+    delay(100);
+    reading += analogRead(IRsensorPin);
+    delay(100);
+    
+    if( reading < 30 ) {
+        mouthOverride = true;
+        Serial.println("Mouth sensor override button present");
+    }
+}
+
+// Send right-of-way UDP packet
+void sendROY(void)
+{
+    leds[2] = CRGB::Blue;
+    FastLED.show();
+    char c = 'X';
+    rightOfWayUDP.beginPacket(broadcastAddress, UDPport);
+    rightOfWayUDP.write(c);
+    rightOfWayUDP.endPacket();
+    delay(100);
+    leds[2] = CRGB::Black;
+    FastLED.show();
+}
