@@ -2,18 +2,41 @@ costumebot supplies (a Lot)
 
 head
     leds
-      BTF lighting 22x22 addressable matrix
-      sk682 sideglow 144/m strip (voicebox)
-      60/m waterproof strip white pcb (scalp)
-      72/m waterproof strip white pcbs (hair strands)
-      ws2811 chips w/ thru hole leds (maybe)
+           BTF lighting 22x22 addressable matrix
+           sk6812 sideglow 144/m strip (voicebox)
+           60/m waterproof strip white pcb (scalp)
+           72/m waterproof strip white pcbs (hair strands)
+           ws2811 chips w/ thru hole leds (maybe)
+           5meters 4mm wide 1515 high density strips (120/44/50leds/m)
+                https://www.aliexpress.com/item/32799110813.html
     micros
-      teensy 3.x
-      ESP32
-      featherMObluefruit
+           teensy 3.x
+                current:
+                possible upgrade if needed: https://www.pjrc.com/store/teensy41.html
+           ESP32
+           featherMObluefruit
     sensors
+           QTR-1A infrared sensors x5 (eye and mouth(maybe) tracking)
+           adafruit electret mic w/ amp
+           mems mic (ampli-tie sound, quality not needed)
+           hall effect sensors x6 (1 or 2 magnets)
+           force sensors
+           flex sensors
     peripherals/shields
-      OctoWS2811 teensy controller
+           OctoWS2811 teensy LED controller
+                https://www.pjrc.com/store/octo28_adaptor.html 
+                led signal SPI amplifier (maybe!)
+           teensy Audio shield
+                https://www.pjrc.com/store/teensy3_audio.html
+           teensy props shield 
+                https://www.pjrc.com/store/prop_shield_lowcost.html
+                https://www.pjrc.com/store/prop_shield.html (has motion sensors, LC doesnt)
+           DFrobot DFplayer mini mp3 for arduino
+                https://wiki.dfrobot.com/DFPlayer_Mini_SKU_DFR0299
       
     connectors
+            right angle flat usb adapters
+                https://www.aliexpress.com/item/1005002001904356.html
+                https://www.aliexpress.com/item/1005002002018625.html
+                
     
