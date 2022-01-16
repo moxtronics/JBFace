@@ -1,0 +1,19 @@
+costumebot supplies (a Lot)
+
+head
+    leds
+      BTF lighting 22x22 addressable matrix
+      sk682 sideglow 144/m strip (voicebox)
+      60/m waterproof strip white pcb (scalp)
+      72/m waterproof strip white pcbs (hair strands)
+      ws2811 chips w/ thru hole leds (maybe)
+    micros
+      teensy 3.x
+      ESP32
+      featherMObluefruit
+    sensors
+    peripherals/shields
+      OctoWS2811 teensy controller
+      
+    connectors
+    
