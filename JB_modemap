@@ -66,6 +66,7 @@ inputs!
 		9dof sensors in each hand for airguitar (flex sensors in left fingers possibly)
 			https://learn.sparkfun.com/tutorials/9dof-sensor-stick-hookup-guide
 			https://learn.sparkfun.com/tutorials/qwiic-flex-glove-controller-hookup-guide
+				flex sensor connector https://www.sparkfun.com/products/14195
 			
 	sounds
 		voicebox with beeps overlay related to frequency/tone
