@@ -65,6 +65,7 @@ inputs!
 		time-of-flight and/or IR for theremin antenna
 		9dof sensors in each hand for airguitar (flex sensors in left fingers possibly)
 			https://learn.sparkfun.com/tutorials/9dof-sensor-stick-hookup-guide
+			10dof - https://learn.adafruit.com/adafruit-10-dof-imu-breakout-lsm303-l3gd20-bmp180
 			https://learn.sparkfun.com/tutorials/qwiic-flex-glove-controller-hookup-guide
 				flex sensor connector https://www.sparkfun.com/products/14195
 			
