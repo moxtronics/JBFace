@@ -62,6 +62,11 @@ inputs!
 	sensors
 		piezos on leggings (thigh slap laughter)
 		gyro for head movement (sound trigger)
+		time-of-flight and/or IR for theremin antenna
+		9dof sensors in each hand for airguitar (flex sensors in left fingers possibly)
+			https://learn.sparkfun.com/tutorials/9dof-sensor-stick-hookup-guide
+			https://learn.sparkfun.com/tutorials/qwiic-flex-glove-controller-hookup-guide
+			
 	sounds
 		voicebox with beeps overlay related to frequency/tone
 		claps make drumkit sounds
